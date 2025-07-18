@@ -1,0 +1,64 @@
+# 1. Import required libraries
+import pandas as pd
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
+# 2. Load sample MovieLens data (you can replace with real .csv files)
+# For demo, we'll simulate small user-item ratings
+data = {
+    'user_id': [1, 1, 1, 2, 2, 3, 3, 4, 4, 5],
+    'movie_id': [101, 102, 103, 101, 104, 102, 104, 101, 103, 104],
+    'rating': [5, 3, 4, 4, 2, 4, 5, 2, 4, 4]
+}
+df = pd.DataFrame(data)
+
+# 3. Create user-item matrix
+user_movie_matrix = df.pivot_table(index='user_id', columns='movie_id', values='rating').fillna(0)
+
+# 4. Compute similarity matrix (User-User Collaborative Filtering)
+similarity_matrix = cosine_similarity(user_movie_matrix)
+similarity_df = pd.DataFrame(similarity_matrix, index=user_movie_matrix.index, columns=user_movie_matrix.index)
+
+# 5. Predict ratings
+def predict_rating(user_id, movie_id):
+    if movie_id not in user_movie_matrix.columns:
+        return 0  # movie not found
+    
+    sim_scores = similarity_df[user_id]
+    ratings = user_movie_matrix[movie_id]
+    
+    # Filter users who have rated the movie
+    mask = ratings > 0
+    if mask.sum() == 0:
+        return 0  # no ratings for this movie
+
+    weighted_sum = np.dot(sim_scores[mask], ratings[mask])
+    sum_of_weights = sim_scores[mask].sum()
+    if sum_of_weights == 0:
+        return 0
+
+    return weighted_sum / sum_of_weights
+
+# 6. Test prediction
+user_id = 5
+movie_id = 102
+predicted_rating = predict_rating(user_id, movie_id)
+print(f"Predicted rating for User {user_id} on Movie {movie_id}: {predicted_rating:.2f}")
+
+# 7. Evaluation using RMSE on existing ratings
+actuals = []
+predictions = []
+
+for index, row in df.iterrows():
+    uid, mid, actual_rating = row['user_id'], row['movie_id'], row['rating']
+    predicted = predict_rating(uid, mid)
+    if predicted > 0:
+        actuals.append(actual_rating)
+        predictions.append(predicted)
+
+rmse = sqrt(mean_squared_error(actuals, predictions))
+print(f"RMSE on known ratings: {rmse:.2f}")
+
+     
